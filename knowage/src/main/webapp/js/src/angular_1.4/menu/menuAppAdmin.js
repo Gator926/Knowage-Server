@@ -19,6 +19,41 @@
 agGrid.initialiseAgGridWithAngular1(angular);
 var myApp = angular.module('menuAppAdmin', ['ngMaterial', 'sbiModule', 'agGrid', 'ngScrollbars']);
 
+myApp.factory('webSocket', ['$location',function($location) {
+    var stack = [];
+    var onmessageDefer;
+    var socket = {
+        ws: new WebSocket('ws://'+ $location.host() + ':' + $location.port() + '/knowage/notifications'),
+        send: function(data) {
+            data = JSON.stringify(data);
+            if (socket.ws.readyState == 1) {
+                socket.ws.send(data);
+            } else {
+                stack.push(data);
+            }
+        },
+        onmessage: function(callback) {
+            if (socket.ws.readyState == 1) {
+                socket.ws.onmessage = callback;
+            } else {
+                onmessageDefer = callback;
+            }
+        }
+    };
+    socket.ws.onopen = function(event) {
+        for (i in stack) {
+            socket.ws.send(stack[i]);
+        }
+        stack = [];
+        if (onmessageDefer) {
+            socket.ws.onmessage = onmessageDefer;
+            onmessageDefer = null;
+        }
+    };
+    return socket;
+    return true;
+}]);
+
 myApp.controller('menuCtrl', ['$scope','$mdDialog',
 	function ($scope,$mdDialog ) {
 		$scope.languages = [];
@@ -40,14 +75,18 @@ myApp.config(function($mdThemingProvider,ScrollBarsProvider) {
         };
 });
 
-myApp.directive('menuAside', ['$window','$http','$mdDialog','$timeout','$mdToast', 'sbiModule_messaging', 'sbiModule_translate', 'sbiModule_download', '$filter','sbiModule_restServices', 'sbiModule_config', 'sbiModule_i18n','sbiModule_user', '$interval',
-	function($window,$http, $mdDialog, $timeout, $mdToast, sbiModule_messaging, sbiModule_translate, sbiModule_download, $filter, sbiModule_restServices, sbiModule_config, sbiModule_i18n, sbiModule_user, $interval) {
+myApp.directive('menuAside', ['$window','$http','$mdDialog','$timeout','$mdToast', 'sbiModule_messaging', 'sbiModule_translate', 'sbiModule_download', '$filter','sbiModule_restServices', 'sbiModule_config', 'sbiModule_i18n','sbiModule_user', '$interval', 'webSocket',
+	function($window,$http, $mdDialog, $timeout, $mdToast, sbiModule_messaging, sbiModule_translate, sbiModule_download, $filter, sbiModule_restServices, sbiModule_config, sbiModule_i18n, sbiModule_user, $interval, webSocket) {
     return {
 
         restrict: 'E',
         templateUrl: sbiModule_config.dynamicResourcesBasePath + "/angular_1.4/menu/templates/menuBarAdmin.html",
         replace: true,
         link:function($scope, elem, attrs) {
+
+        	webSocket.onmessage(function(event) {
+        		console.log(JSON.parse(event.data));
+        	});
 
 
         	$scope.testIe11 = function(){
